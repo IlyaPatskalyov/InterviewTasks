@@ -1,17 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 public class Items<TKey>
 {
+    private int time = 0;
+
+    public int Now => Interlocked.Increment(ref time);
+
     private class Item
     {
         public TKey Id { get; set; }
 
         public bool IsDeleted { get; set; }
 
-        public DateTime UpdatedAt { get; set; }
+        public int UpdatedAt { get; set; }
     }
 
     private readonly ICollection<Item> items = new List<Item>();
@@ -23,10 +28,10 @@ public class Items<TKey>
             throw new Exception($"Элемент с ключом '{id}' уже добавлен");
 
         items.Add(new Item
-                  {
-                      Id = id,
-                      UpdatedAt = DateTime.UtcNow
-                  });
+        {
+            Id = id,
+            UpdatedAt = Now
+        });
     }
 
     public void Update(TKey id)
@@ -38,7 +43,7 @@ public class Items<TKey>
         if (item.IsDeleted)
         {
             item.IsDeleted = false;
-            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedAt = Now;
         }
     }
 
@@ -51,7 +56,7 @@ public class Items<TKey>
         if (!item.IsDeleted)
         {
             item.IsDeleted = true;
-            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedAt = Now;
         }
     }
 
@@ -92,20 +97,30 @@ class ItemsTest
             var expected = new[] {5, 4, 2, 1};
             var actual = items.GetActiveItems();
             if (!expected.SequenceEqual(actual))
-                throw new Exception($"Неверный ответ. Ожидалось '{string.Join(", ", expected)}'. Получено '{string.Join(", ", actual)}'");
+                throw new Exception(
+                    $"Неверный ответ. Ожидалось '{string.Join(", ", expected)}'. Получено '{string.Join(", ", actual)}'");
 
             expected = new[] {3, 0};
             actual = items.GetDeletedItems();
             if (!expected.SequenceEqual(actual))
-                throw new Exception($"Неверный ответ. Ожидалось '{string.Join(", ", expected)}'. Получено '{string.Join(", ", actual)}'");
+                throw new Exception(
+                    $"Неверный ответ. Ожидалось '{string.Join(", ", expected)}'. Получено '{string.Join(", ", actual)}'");
 
             var items2 = new Items<int>();
             for (var i = 0; i < 10000; i++)
                 items2.Add(i);
 
-            Console.WriteLine(Task.Run(() => items2.SetActiveItems(Enumerable.Range(5000, 15000))).Wait(TimeSpan.FromSeconds(1))
-                                  ? "Задача решена!"
-                                  : "Задача решена не оптимально!");
+            if (Task.Run(() =>
+                    items2.SetActiveItems(Enumerable.Range(5000, 15000).OrderBy(a => Guid.NewGuid())))
+                .Wait(TimeSpan.FromSeconds(1)))
+            {
+                if (!Enumerable.Range(5000, 15000).SequenceEqual(items2.GetActiveItems().OrderBy(x => x)))
+                    throw new Exception($"Неверный ответ");
+                else
+                    Console.WriteLine("Задача решена");
+            }
+            else
+                throw new Exception("Задача не решена оптимально");
         }
         catch (Exception e)
         {
