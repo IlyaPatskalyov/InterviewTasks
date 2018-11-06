@@ -55,7 +55,7 @@ export class Class3 extends React.Component<IProps, IState> {
         for(var i = 0; i < users.length; i++) {
             var userInfo = users[i];
             result[userInfo] = <a onClick={() => window.location.href = userInfo.profileLink}>userInfo.name<br/></a>;
-            if (usersCount++ > 10)
+            if (Object.keys(result).length > 10)
                 break;
         }
         return Object.values(result);
